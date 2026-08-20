@@ -71,15 +71,13 @@ export class DocumentsService {
   }
 
   async askQuestion(question: string) {
-    // 1. Convert the user's question into an embedding.
     const questionEmbedding =
       await this.embeddingService.createEmbedding(question);
 
     const similarity = sql<number>`
-    1 - (${cosineDistance(chunks.embedding, questionEmbedding)})
-  `;
+      1 - (${cosineDistance(chunks.embedding, questionEmbedding)})
+    `;
 
-    // 3. Search the chunks table.
     const results = await this.db
       .select({
         id: chunks.id,
@@ -88,15 +86,40 @@ export class DocumentsService {
         similarity,
       })
       .from(chunks)
-      // Highest similarity first.
       .orderBy(desc(similarity))
-      // For now, retrieve only the best 3 chunks.
       .limit(3);
 
-    // 4. Combine retrieved chunks into one context string.
-    const context = results.map((result) => result.content).join('\n\n');
+    // No chunks found in database.
+    if (results.length === 0) {
+      return {
+        question,
+        answer: 'No document information was found.',
+        sources: [],
+      };
+    }
 
-    // 5. Send question + retrieved context to Gemini.
+    // Remove results that are too unrelated.
+    const relevantResults = results.filter(
+      (result) => result.similarity >= 0.5,
+    );
+
+    if (relevantResults.length === 0) {
+      return {
+        question,
+        answer: 'I could not find that information in the document.',
+        sources: [],
+      };
+    }
+
+    const context = relevantResults
+      .map((result, index) => {
+        return `
+  Source ${index + 1}:
+  ${result.content}
+  `;
+      })
+      .join('\n');
+
     const answer = await this.embeddingService.generateAnswer(
       question,
       context,
@@ -105,7 +128,13 @@ export class DocumentsService {
     return {
       question,
       answer,
-      sources: results,
+
+      sources: relevantResults.map((result) => ({
+        chunkId: result.id,
+        documentId: result.documentId,
+        similarity: result.similarity,
+        content: result.content,
+      })),
     };
   }
 }
