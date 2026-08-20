@@ -13,7 +13,7 @@ export class EmbeddingService {
 
   async createEmbedding(text: string): Promise<number[]> {
     const result = await this.ai.models.embedContent({
-      model: 'gemini-flash-latest',
+      model: 'gemini-embedding-001',
 
       contents: text,
 
