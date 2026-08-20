@@ -7,6 +7,7 @@ import { DATABASE_CONNECTION } from '../database/database.constants';
 import * as schema from '../database/schema';
 import { chunks, documents } from '../database/schema';
 import { chunkText } from './utils/chunk-text';
+import { sql, cosineDistance, desc } from 'drizzle-orm';
 
 @Injectable()
 export class DocumentsService {
@@ -72,12 +73,38 @@ export class DocumentsService {
   async askQuestion(question: string) {
     // Convert the user's question into the same
     // 768-dimension vector format used by our PDF chunks.
+
+    // 1. Convert the user's question into an embedding.
     const questionEmbedding =
       await this.embeddingService.createEmbedding(question);
 
+    // 2. Calculate similarity.
+    // cosineDistance:
+    // 0 = extremely close
+    // larger value = less similar
+    // We convert distance into similarity:
+    // similarity = 1 - distance
+
+    const similarity = sql<number>`
+    1 - (${cosineDistance(chunks.embedding, questionEmbedding)})
+  `;
+
+    // 3. Search the chunks table.
+    const results = await this.db
+      .select({
+        id: chunks.id,
+        content: chunks.content,
+        documentId: chunks.documentId,
+        similarity,
+      })
+      .from(chunks)
+      // Highest similarity first.
+      .orderBy(desc(similarity))
+      // For now, retrieve only the best 3 chunks.
+      .limit(3);
     return {
       question,
-      embeddingDimensions: questionEmbedding.length,
+      results,
     };
   }
 }
