@@ -71,19 +71,9 @@ export class DocumentsService {
   }
 
   async askQuestion(question: string) {
-    // Convert the user's question into the same
-    // 768-dimension vector format used by our PDF chunks.
-
     // 1. Convert the user's question into an embedding.
     const questionEmbedding =
       await this.embeddingService.createEmbedding(question);
-
-    // 2. Calculate similarity.
-    // cosineDistance:
-    // 0 = extremely close
-    // larger value = less similar
-    // We convert distance into similarity:
-    // similarity = 1 - distance
 
     const similarity = sql<number>`
     1 - (${cosineDistance(chunks.embedding, questionEmbedding)})
@@ -102,9 +92,20 @@ export class DocumentsService {
       .orderBy(desc(similarity))
       // For now, retrieve only the best 3 chunks.
       .limit(3);
+
+    // 4. Combine retrieved chunks into one context string.
+    const context = results.map((result) => result.content).join('\n\n');
+
+    // 5. Send question + retrieved context to Gemini.
+    const answer = await this.embeddingService.generateAnswer(
+      question,
+      context,
+    );
+
     return {
       question,
-      results,
+      answer,
+      sources: results,
     };
   }
 }

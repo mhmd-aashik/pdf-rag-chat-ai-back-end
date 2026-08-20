@@ -24,4 +24,25 @@ export class EmbeddingService {
 
     return result.embeddings?.[0]?.values ?? [];
   }
+
+  async generateAnswer(question: string, context: string): Promise<string> {
+    const response = await this.ai.models.generateContent({
+      model: 'gemini-flash-latest',
+
+      contents: `
+      You are answering questions using only the provided context.
+      
+      Context:
+      ${context}
+      
+      Question:
+      ${question}
+      
+      If the answer is not available in the context, say:
+      "I could not find that information in the document."
+      `,
+    });
+
+    return response.text ?? '';
+  }
 }
