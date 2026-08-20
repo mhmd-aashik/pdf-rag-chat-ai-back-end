@@ -68,4 +68,16 @@ export class DocumentsService {
       message: 'PDF processed successfully',
     };
   }
+
+  async askQuestion(question: string) {
+    // Convert the user's question into the same
+    // 768-dimension vector format used by our PDF chunks.
+    const questionEmbedding =
+      await this.embeddingService.createEmbedding(question);
+
+    return {
+      question,
+      embeddingDimensions: questionEmbedding.length,
+    };
+  }
 }
