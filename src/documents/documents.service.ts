@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PDFParse } from 'pdf-parse';
+import { chunkText } from './utils/chunk-text';
 
 @Injectable()
 export class DocumentsService {
@@ -15,11 +16,15 @@ export class DocumentsService {
     // Release parser resources
     await parser.destroy();
 
+    const chunks = chunkText(result.text);
+
     return {
       fileName: file.originalname,
       mimeType: file.mimetype,
       size: file.size,
       text: result.text,
+      chunks,
+      totalChunks: chunks.length,
     };
   }
 }
