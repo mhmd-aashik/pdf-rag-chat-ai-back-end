@@ -5,6 +5,7 @@ import { DatabaseModule } from './database/database.module';
 import { ConfigModule } from '@nestjs/config';
 import { DocumentsController } from './documents/documents.controller';
 import { DocumentsService } from './documents/documents.service';
+import { DocumentsModule } from './documents/documents.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { DocumentsService } from './documents/documents.service';
       isGlobal: true,
     }),
     DatabaseModule,
+    DocumentsModule,
   ],
   controllers: [AppController, DocumentsController],
   providers: [AppService, DocumentsService],
