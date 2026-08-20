@@ -6,6 +6,7 @@ import { ConfigModule } from '@nestjs/config';
 import { DocumentsController } from './documents/documents.controller';
 import { DocumentsService } from './documents/documents.service';
 import { DocumentsModule } from './documents/documents.module';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { DocumentsModule } from './documents/documents.module';
     }),
     DatabaseModule,
     DocumentsModule,
+    AiModule,
   ],
   controllers: [AppController, DocumentsController],
   providers: [AppService, DocumentsService],
