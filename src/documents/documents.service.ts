@@ -1,34 +1,71 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { PDFParse } from 'pdf-parse';
+
+import { EmbeddingService } from '../ai/embedding.service';
+import { DATABASE_CONNECTION } from '../database/database.constants';
+import * as schema from '../database/schema';
+import { chunks, documents } from '../database/schema';
 import { chunkText } from './utils/chunk-text';
-import { EmbeddingService } from 'src/ai/embedding.service';
 
 @Injectable()
 export class DocumentsService {
-  constructor(private readonly embeddingService: EmbeddingService) {}
+  constructor(
+    @Inject(DATABASE_CONNECTION)
+    private readonly db: NodePgDatabase<typeof schema>,
+
+    private readonly embeddingService: EmbeddingService,
+  ) {}
 
   async uploadPdf(file: Express.Multer.File) {
-    // create the PDF parser using the uploaded file buffer
+    // 1. Read the uploaded PDF.
     const parser = new PDFParse({
       data: file.buffer,
     });
 
-    // Extract plain text from the PDF.
+    // 2. Extract plain text.
     const result = await parser.getText();
 
-    // Release parser resources
     await parser.destroy();
 
-    const chunks = chunkText(result.text);
+    // 3. Split the PDF text into smaller chunks.
+    const textChunks = chunkText(result.text);
 
-    const embedding = await this.embeddingService.createEmbedding(chunks[0]);
+    // 4. Generate an embedding for every chunk.
+    const chunksWithEmbeddings = await Promise.all(
+      textChunks.map(async (content) => {
+        const embedding = await this.embeddingService.createEmbedding(content);
 
+        return {
+          content,
+          embedding,
+        };
+      }),
+    );
+
+    // 5. Insert the original document.
+    const [document] = await this.db
+      .insert(documents)
+      .values({
+        fileName: file.originalname,
+      })
+      .returning();
+
+    // 6. Insert all chunks belonging to that document.
+    await this.db.insert(chunks).values(
+      chunksWithEmbeddings.map((chunk) => ({
+        documentId: document.id,
+        content: chunk.content,
+        embedding: chunk.embedding,
+      })),
+    );
+
+    // 7. Return a small response.
     return {
-      fileName: file.originalname,
-      totalChunks: chunks.length,
-      firstChunk: chunks[0],
-      embeddingDimensions: embedding.length,
-      embedding,
+      documentId: document.id,
+      fileName: document.fileName,
+      totalChunks: chunksWithEmbeddings.length,
+      message: 'PDF processed successfully',
     };
   }
 }
