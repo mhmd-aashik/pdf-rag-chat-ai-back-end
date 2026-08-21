@@ -7,7 +7,7 @@ import { DATABASE_CONNECTION } from '../database/database.constants';
 import * as schema from '../database/schema';
 import { chunks, documents } from '../database/schema';
 import { chunkText } from './utils/chunk-text';
-import { sql, cosineDistance, desc } from 'drizzle-orm';
+import { sql, cosineDistance, desc, eq } from 'drizzle-orm';
 
 @Injectable()
 export class DocumentsService {
@@ -70,7 +70,7 @@ export class DocumentsService {
     };
   }
 
-  async askQuestion(question: string) {
+  async askQuestion(question: string, documentId: string) {
     const questionEmbedding =
       await this.embeddingService.createEmbedding(question);
 
@@ -86,10 +86,13 @@ export class DocumentsService {
         similarity,
       })
       .from(chunks)
+
+      // Search ONLY inside the selected PDF.
+      .where(eq(chunks.documentId, documentId))
+
       .orderBy(desc(similarity))
       .limit(3);
 
-    // No chunks found in database.
     if (results.length === 0) {
       return {
         question,
@@ -98,7 +101,6 @@ export class DocumentsService {
       };
     }
 
-    // Remove results that are too unrelated.
     const relevantResults = results.filter(
       (result) => result.similarity >= 0.5,
     );
@@ -112,12 +114,12 @@ export class DocumentsService {
     }
 
     const context = relevantResults
-      .map((result, index) => {
-        return `
+      .map(
+        (result, index) => `
   Source ${index + 1}:
   ${result.content}
-  `;
-      })
+  `,
+      )
       .join('\n');
 
     const answer = await this.embeddingService.generateAnswer(

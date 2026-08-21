@@ -22,6 +22,6 @@ export class DocumentsController {
 
   @Post('ask')
   askQuestion(@Body() dto: AskQuestionDto) {
-    return this.documentsService.askQuestion(dto.question);
+    return this.documentsService.askQuestion(dto.question, dto.documentId);
   }
 }
